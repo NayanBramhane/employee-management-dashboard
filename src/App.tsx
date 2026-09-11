@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
-  Button,
   Container,
   Paper,
   Snackbar,
@@ -10,18 +9,23 @@ import {
   Typography,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
+
 import DashboardHeader from "./components/DashboardHeader";
 import StatCard from "./components/StatCard";
 import FilterBar from "./components/FilterBar";
 import EmployeeTable from "./components/EmployeeTable";
 import EmployeeDialog from "./components/EmployeeDialog";
 import ConfirmDialog from "./components/ConfirmDialog";
+
 import {
   API_URL,
   type ApiResponse,
   type Employee,
   type SortOption,
 } from "./utils/utils";
+import CustomButton from "./components/CustomButton";
+
+const CACHE_KEY = "employee-dashboard-data";
 
 const processData = (array: Employee[]) => {
   const departments = ["IT", "HR", "Finance"];
@@ -52,12 +56,14 @@ function App() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [usingCachedData, setUsingCachedData] = useState(false);
 
   const fetchData = async () => {
-    try {
-      setLoading(true);
-      setMessage("");
+    setLoading(true);
+    setMessage("");
+    setUsingCachedData(false);
 
+    try {
       const response = await fetch(API_URL);
 
       if (!response.ok) {
@@ -66,14 +72,47 @@ function App() {
 
       const employeeJson: ApiResponse = await response.json();
 
-      if (employeeJson.status === "success") {
-        setEmployees(processData(employeeJson.data));
-      } else {
-        setMessage(employeeJson.message || "Failed to fetch employee data");
+      if (employeeJson.status !== "success") {
+        throw new Error(
+          employeeJson.message || "Failed to fetch employee data",
+        );
       }
+
+      // Process the API response before storing it.
+      const processedEmployees = processData(employeeJson.data);
+
+      // Store the latest successful response as JSON in local storage.
+      localStorage.setItem(CACHE_KEY, JSON.stringify(processedEmployees));
+
+      // Use the fresh API data.
+      setEmployees(processedEmployees);
+      setMessage("");
     } catch (error) {
-      console.error(error);
-      setMessage("Failed to fetch employee data. Please try again.");
+      console.error("API fetch failed:", error);
+
+      // Try to load the last successfully fetched data from local storage.
+      const cachedData = localStorage.getItem(CACHE_KEY);
+
+      if (cachedData) {
+        try {
+          const cachedEmployees: Employee[] = JSON.parse(cachedData);
+
+          // Use cached data instead of showing an empty dashboard.
+          setEmployees(cachedEmployees);
+          setUsingCachedData(true);
+
+          setMessage(
+            "Unable to fetch latest data. Showing previously saved data.",
+          );
+        } catch (cacheError) {
+          console.error("Failed to read cached employee data:", cacheError);
+
+          setMessage("Failed to fetch employee data. Please try again.");
+        }
+      } else {
+        // No API data and no cached data are available.
+        setMessage("Failed to fetch employee data. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -92,19 +131,52 @@ function App() {
 
         const employeeJson: ApiResponse = await response.json();
 
+        if (employeeJson.status !== "success") {
+          throw new Error(
+            employeeJson.message || "Failed to fetch employee data",
+          );
+        }
+
+        // Process the API response before storing it.
+        const processedEmployees = processData(employeeJson.data);
+
+        // Store the latest successful response as JSON in local storage.
+        localStorage.setItem(CACHE_KEY, JSON.stringify(processedEmployees));
+
         if (cancelled) return;
 
-        if (employeeJson.status === "success") {
-          setEmployees(processData(employeeJson.data));
-          setMessage("");
-        } else {
-          setMessage(employeeJson.message || "Failed to fetch employee data");
-        }
+        // Use the fresh API data.
+        setEmployees(processedEmployees);
+        setMessage("");
+        setUsingCachedData(false);
       } catch (error) {
         if (cancelled) return;
 
-        console.error(error);
-        setMessage("Failed to fetch employee data. Please try again.");
+        console.error("API fetch failed:", error);
+
+        // Try to load the last successfully fetched data from local storage.
+        const cachedData = localStorage.getItem(CACHE_KEY);
+
+        if (cachedData) {
+          try {
+            const cachedEmployees: Employee[] = JSON.parse(cachedData);
+
+            // Use cached data instead of showing an empty dashboard.
+            setEmployees(cachedEmployees);
+            setUsingCachedData(true);
+
+            setMessage(
+              "Unable to fetch latest data. Showing previously saved data.",
+            );
+          } catch (cacheError) {
+            console.error("Failed to read cached employee data:", cacheError);
+
+            setMessage("Failed to fetch employee data. Please try again.");
+          }
+        } else {
+          // No API data and no cached data are available.
+          setMessage("Failed to fetch employee data. Please try again.");
+        }
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -112,7 +184,7 @@ function App() {
       }
     };
 
-    loadEmployees();
+    void loadEmployees();
 
     return () => {
       cancelled = true;
@@ -135,12 +207,16 @@ function App() {
       switch (sort) {
         case "salary-asc":
           return a.employee_salary - b.employee_salary;
+
         case "salary-desc":
           return b.employee_salary - a.employee_salary;
+
         case "name-asc":
           return a.employee_name.localeCompare(b.employee_name);
+
         case "name-desc":
           return b.employee_name.localeCompare(a.employee_name);
+
         default:
           return 0;
       }
@@ -148,11 +224,13 @@ function App() {
   }, [employees, search, department, sort]);
 
   const totalEmployees = employees.length;
+
   const averageSalary =
     totalEmployees === 0
       ? 0
       : employees.reduce((sum, employee) => sum + employee.employee_salary, 0) /
         totalEmployees;
+
   const highestSalary =
     totalEmployees === 0
       ? 0
@@ -206,16 +284,22 @@ function App() {
       }
 
       if (isEdit) {
-        setEmployees((current) =>
-          current.map((employee) =>
+        setEmployees((current) => {
+          const updatedEmployees = current.map((employee) =>
             employee.id === editingEmployee!.id
               ? {
                   ...employeeData,
                   id: editingEmployee!.id,
                 }
               : employee,
-          ),
-        );
+          );
+
+          // Keep local cache synchronized with the edit.
+          localStorage.setItem(CACHE_KEY, JSON.stringify(updatedEmployees));
+
+          return updatedEmployees;
+        });
+
         setMessage("Employee updated successfully.");
       } else {
         const created = result.data;
@@ -230,7 +314,15 @@ function App() {
           department: employeeData.department,
         };
 
-        setEmployees((current) => [...current, newEmployee]);
+        setEmployees((current) => {
+          const updatedEmployees = [...current, newEmployee];
+
+          // Keep local cache synchronized with the new employee.
+          localStorage.setItem(CACHE_KEY, JSON.stringify(updatedEmployees));
+
+          return updatedEmployees;
+        });
+
         setMessage("Employee added successfully.");
       }
 
@@ -255,6 +347,7 @@ function App() {
       setMessage("");
 
       const baseUrl = API_URL.replace("/employees", "");
+
       const response = await fetch(`${baseUrl}/delete/${employee.id}`, {
         method: "DELETE",
       });
@@ -269,12 +362,21 @@ function App() {
         throw new Error(result.message || "Delete failed");
       }
 
-      setEmployees((current) =>
-        current.filter((item) => item.id !== employee.id),
-      );
+      setEmployees((current) => {
+        const updatedEmployees = current.filter(
+          (item) => item.id !== employee.id,
+        );
+
+        // Keep local cache synchronized with the deletion.
+        localStorage.setItem(CACHE_KEY, JSON.stringify(updatedEmployees));
+
+        return updatedEmployees;
+      });
+
       setMessage("Employee deleted successfully.");
     } catch (error) {
       console.error(error);
+
       setMessage("Failed to delete employee. Please try again.");
     } finally {
       setActionLoading(false);
@@ -291,9 +393,7 @@ function App() {
 
   return (
     <Box className="min-h-screen bg-gray-100">
-      <DashboardHeader
-        title="Employee Management Dashboard"
-      />
+      <DashboardHeader title="Employee Management Dashboard" />
 
       <Container maxWidth="xl" className="px-4 py-8 sm:px-6 lg:px-8">
         <Stack spacing={3}>
@@ -302,12 +402,14 @@ function App() {
               label="Total Employees"
               value={totalEmployees.toLocaleString("en-IN")}
             />
+
             <StatCard
               label="Average Salary"
               value={`₹${averageSalary.toLocaleString("en-IN", {
                 maximumFractionDigits: 0,
               })}`}
             />
+
             <StatCard
               label="Highest Salary"
               value={`₹${highestSalary.toLocaleString("en-IN")}`}
@@ -355,17 +457,19 @@ function App() {
               </Paper>
             )}
 
-          {message.includes("Failed to fetch") && (
-            <Box className="text-center">
-              <Button
-                variant="contained"
-                startIcon={<RefreshIcon />}
-                onClick={fetchData}
-              >
-                Retry
-              </Button>
-            </Box>
-          )}
+          {!loading &&
+            !usingCachedData &&
+            message.includes("Failed to fetch") && (
+              <Box className="text-center">
+                <CustomButton
+                  variant="primary"
+                  startIcon={<RefreshIcon />}
+                  onClick={() => void fetchData()}
+                >
+                  Retry
+                </CustomButton>
+              </Box>
+            )}
         </Stack>
       </Container>
 
@@ -388,7 +492,9 @@ function App() {
         }
         loading={actionLoading}
         onCancel={() => {
-          if (!actionLoading) setDeleteTarget(null);
+          if (!actionLoading) {
+            setDeleteTarget(null);
+          }
         }}
         onConfirm={() => {
           if (deleteTarget) {
@@ -401,7 +507,10 @@ function App() {
         open={Boolean(message) && !message.includes("Failed to fetch")}
         autoHideDuration={3500}
         onClose={() => setMessage("")}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "center",
+        }}
       >
         <Alert
           severity={message.startsWith("Failed") ? "error" : "success"}

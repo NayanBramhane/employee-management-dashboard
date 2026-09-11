@@ -6,6 +6,7 @@ import {
   DialogTitle,
   Typography,
 } from "@mui/material";
+import CustomButton from "./CustomButton";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -38,14 +39,13 @@ const ConfirmDialog = ({
       <Button onClick={onCancel} disabled={loading}>
         Cancel
       </Button>
-      <Button
-        color="error"
-        variant="contained"
+      <CustomButton
+        variant="danger"
         onClick={onConfirm}
         disabled={loading}
       >
         {loading ? "Deleting..." : "Delete"}
-      </Button>
+      </CustomButton>
     </DialogActions>
   </Dialog>
 );

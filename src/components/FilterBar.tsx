@@ -1,16 +1,7 @@
 import { Add as AddIcon, Search as SearchIcon } from "@mui/icons-material";
-import {
-  Button,
-  FormControl,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  type SelectChangeEvent,
-  Stack,
-  TextField,
-} from "@mui/material";
+import { Button, InputAdornment, Paper, Stack, TextField } from "@mui/material";
+
+import CustomSelect from "./CustomSelect";
 import type { SortOption } from "../utils/utils";
 
 type FilterBarProps = {
@@ -32,9 +23,47 @@ const FilterBar = ({
   onSortChange,
   onAdd,
 }: FilterBarProps) => {
-  const handleSortChange = (event: SelectChangeEvent<SortOption>) => {
-    onSortChange(event.target.value as SortOption);
-  };
+  const departmentOptions = [
+    {
+      label: "All Departments",
+      value: "All Departments",
+    },
+    {
+      label: "IT",
+      value: "IT",
+    },
+    {
+      label: "HR",
+      value: "HR",
+    },
+    {
+      label: "Finance",
+      value: "Finance",
+    },
+  ];
+
+  const sortOptions = [
+    {
+      label: "Sort by...",
+      value: "none",
+    },
+    {
+      label: "Salary: Low → High",
+      value: "salary-asc",
+    },
+    {
+      label: "Salary: High → Low",
+      value: "salary-desc",
+    },
+    {
+      label: "Name: A → Z",
+      value: "name-asc",
+    },
+    {
+      label: "Name: Z → A",
+      value: "name-desc",
+    },
+  ];
 
   return (
     <Paper elevation={2} className="p-4">
@@ -66,36 +95,23 @@ const FilterBar = ({
           className="lg:flex-1"
         />
 
-        <FormControl fullWidth className="lg:min-w-52.5 lg:max-w-60">
-          <InputLabel id="department-label">Department</InputLabel>
-          <Select
-            labelId="department-label"
+        <div className="lg:min-w-52.5 lg:max-w-60">
+          <CustomSelect
             label="Department"
             value={department}
-            onChange={(event) => onDepartmentChange(event.target.value)}
-          >
-            <MenuItem value="All Departments">All Departments</MenuItem>
-            <MenuItem value="IT">IT</MenuItem>
-            <MenuItem value="HR">HR</MenuItem>
-            <MenuItem value="Finance">Finance</MenuItem>
-          </Select>
-        </FormControl>
+            options={departmentOptions}
+            onChange={onDepartmentChange}
+          />
+        </div>
 
-        <FormControl fullWidth className="lg:min-w-52.5 lg:max-w-60">
-          <InputLabel id="sort-label">Sort</InputLabel>
-          <Select
-            labelId="sort-label"
+        <div className="lg:min-w-52.5 lg:max-w-60">
+          <CustomSelect
             label="Sort"
             value={sort}
-            onChange={handleSortChange}
-          >
-            <MenuItem value="none">Sort by...</MenuItem>
-            <MenuItem value="salary-asc">Salary: Low → High</MenuItem>
-            <MenuItem value="salary-desc">Salary: High → Low</MenuItem>
-            <MenuItem value="name-asc">Name: A → Z</MenuItem>
-            <MenuItem value="name-desc">Name: Z → A</MenuItem>
-          </Select>
-        </FormControl>
+            options={sortOptions}
+            onChange={(value) => onSortChange(value as SortOption)}
+          />
+        </div>
 
         <Button
           variant="contained"

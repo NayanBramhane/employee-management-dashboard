@@ -34,9 +34,6 @@ const EmployeeDialog = ({
   const [salary, setSalary] = useState(
     employee ? String(employee.employee_salary) : "",
   );
-  const [age, setAge] = useState(
-    employee ? String(employee.employee_age || 30) : "30",
-  );
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -45,7 +42,7 @@ const EmployeeDialog = ({
       id: employee?.id ?? 0,
       employee_name: name.trim(),
       employee_salary: Number(salary),
-      employee_age: Number(age),
+      employee_age: 30,
       profile_image: employee?.profile_image ?? "",
       email: email.trim(),
       department,
@@ -103,16 +100,6 @@ const EmployeeDialog = ({
               value={salary}
               onChange={(event) => setSalary(event.target.value)}
               slotProps={{ htmlInput: { min: 0 } }}
-            />
-
-            <TextField
-              required
-              fullWidth
-              type="number"
-              label="Age"
-              value={age}
-              onChange={(event) => setAge(event.target.value)}
-              slotProps={{ htmlInput: { min: 18 } }}
             />
           </Stack>
         </DialogContent>
