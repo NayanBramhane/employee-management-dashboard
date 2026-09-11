@@ -1,3 +1,5 @@
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 import type { Employee } from "../utils/utils";
 
 type TableProps = {
@@ -13,16 +15,22 @@ const Table = ({ employees, onEdit, onDelete, disabled }: TableProps) => {
       <table className="w-full border-collapse">
         <thead>
           <tr>
-            {["ID", "Name", "Email", "Department", "Salary", "Edit", "Delete"].map(
-              (heading) => (
-                <th
-                  key={heading}
-                  className="bg-gray-700 px-4 py-3 text-left text-white"
-                >
-                  {heading}
-                </th>
-              )
-            )}
+            {[
+              "ID",
+              "Name",
+              "Email",
+              "Department",
+              "Salary",
+              "Edit",
+              "Delete",
+            ].map((heading) => (
+              <th
+                key={heading}
+                className="bg-gray-700 px-4 py-3 text-left text-white"
+              >
+                {heading}
+              </th>
+            ))}
           </tr>
         </thead>
 
@@ -30,7 +38,9 @@ const Table = ({ employees, onEdit, onDelete, disabled }: TableProps) => {
           {employees.map((employee) => (
             <tr key={employee.id} className="border-b hover:bg-gray-50">
               <td className="px-4 py-3">{employee.id}</td>
-              <td className="px-4 py-3 font-medium">{employee.employee_name}</td>
+              <td className="px-4 py-3 font-medium">
+                {employee.employee_name}
+              </td>
               <td className="px-4 py-3">{employee.email ?? ""}</td>
               <td className="px-4 py-3">{employee.department ?? ""}</td>
               <td className="px-4 py-3">
@@ -40,20 +50,20 @@ const Table = ({ employees, onEdit, onDelete, disabled }: TableProps) => {
                 <button
                   onClick={() => onEdit(employee)}
                   disabled={disabled}
-                  className="text-xl hover:scale-110 disabled:opacity-50"
+                  className="text-blue-600 hover:scale-110 disabled:opacity-50"
                   title="Edit employee"
                 >
-                  ✏️
+                  <EditIcon />
                 </button>
               </td>
               <td className="px-4 py-3">
                 <button
                   onClick={() => onDelete(employee)}
                   disabled={disabled}
-                  className="text-xl hover:scale-110 disabled:opacity-50"
+                  className="text-red-600 hover:scale-110 disabled:opacity-50"
                   title="Delete employee"
                 >
-                  ❌
+                  <DeleteIcon />
                 </button>
               </td>
             </tr>

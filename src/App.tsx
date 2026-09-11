@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import "./App.css";
-import Table from "./components/Table";
-import Filter from "./components/Filter";
-import EmployeeForm from "./components/EmployeeForm";
+import {
+  Alert,
+  Box,
+  Button,
+  Container,
+  Paper,
+  Snackbar,
+  Stack,
+  Typography,
+} from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import DashboardHeader from "./components/DashboardHeader";
+import StatCard from "./components/StatCard";
+import FilterBar from "./components/FilterBar";
+import EmployeeTable from "./components/EmployeeTable";
+import EmployeeDialog from "./components/EmployeeDialog";
+import ConfirmDialog from "./components/ConfirmDialog";
 import {
   API_URL,
   type ApiResponse,
@@ -10,34 +23,35 @@ import {
   type SortOption,
 } from "./utils/utils";
 
+const processData = (array: Employee[]) => {
+  const departments = ["IT", "HR", "Finance"];
+
+  return array.map((employee) => {
+    const name = employee.employee_name.replaceAll(" ", "_");
+
+    // Randomly assign one of the available departments.
+    const randomDepartment =
+      departments[Math.floor(Math.random() * departments.length)];
+
+    return {
+      ...employee,
+      email: `${name.toLowerCase()}@gmail.com`,
+      department: randomDepartment,
+    };
+  });
+};
+
 function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState("All Departments");
   const [sort, setSort] = useState<SortOption>("none");
   const [showForm, setShowForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-
-  const processData = (array: Employee[]) => {
-    const departments = ["IT", "HR", "Finance"];
-
-    return array.map((employee) => {
-      const name = employee.employee_name.replaceAll(" ", "_");
-
-      // Randomly assign one of the available departments
-      const randomDepartment =
-        departments[Math.floor(Math.random() * departments.length)];
-
-      return {
-        ...employee,
-        email: `${name.toLowerCase()}@gmail.com`,
-        department: randomDepartment,
-      };
-    });
-  };
+  const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
 
   const fetchData = async () => {
     try {
@@ -66,11 +80,10 @@ function App() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadEmployees = async () => {
       try {
-        setLoading(true);
-        setMessage("");
-
         const response = await fetch(API_URL);
 
         if (!response.ok) {
@@ -79,20 +92,31 @@ function App() {
 
         const employeeJson: ApiResponse = await response.json();
 
+        if (cancelled) return;
+
         if (employeeJson.status === "success") {
           setEmployees(processData(employeeJson.data));
+          setMessage("");
         } else {
           setMessage(employeeJson.message || "Failed to fetch employee data");
         }
       } catch (error) {
+        if (cancelled) return;
+
         console.error(error);
         setMessage("Failed to fetch employee data. Please try again.");
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     loadEmployees();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const visibleEmployees = useMemo(() => {
@@ -133,6 +157,18 @@ function App() {
     totalEmployees === 0
       ? 0
       : Math.max(...employees.map((employee) => employee.employee_salary));
+
+  const openAddForm = () => {
+    setEditingEmployee(null);
+    setShowForm(true);
+    setMessage("");
+  };
+
+  const handleEdit = (employee: Employee) => {
+    setEditingEmployee(employee);
+    setShowForm(true);
+    setMessage("");
+  };
 
   const handleSave = async (employeeData: Employee) => {
     const isEdit = Boolean(editingEmployee);
@@ -180,7 +216,6 @@ function App() {
               : employee,
           ),
         );
-
         setMessage("Employee updated successfully.");
       } else {
         const created = result.data;
@@ -214,19 +249,7 @@ function App() {
     }
   };
 
-  const handleEdit = (employee: Employee) => {
-    setEditingEmployee(employee);
-    setShowForm(true);
-    setMessage("");
-  };
-
   const handleDelete = async (employee: Employee) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${employee.employee_name}?`,
-    );
-
-    if (!confirmed) return;
-
     try {
       setActionLoading(true);
       setMessage("");
@@ -255,110 +278,140 @@ function App() {
       setMessage("Failed to delete employee. Please try again.");
     } finally {
       setActionLoading(false);
+      setDeleteTarget(null);
     }
   };
 
   const closeForm = () => {
+    if (actionLoading) return;
+
     setShowForm(false);
     setEditingEmployee(null);
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-amber-400 p-4 text-center shadow">
-        <h1 className="text-3xl font-bold">Employee Management Dashboard</h1>
-      </header>
+    <Box className="min-h-screen bg-gray-100">
+      <DashboardHeader
+        title="Employee Management Dashboard"
+      />
 
-      <main className="mx-auto max-w-7xl p-4">
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-lg bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">Total Employees</p>
-            <p className="text-3xl font-bold">{totalEmployees}</p>
-          </div>
-
-          <div className="rounded-lg bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">Average Salary</p>
-            <p className="text-3xl font-bold">
-              ₹
-              {averageSalary.toLocaleString("en-IN", {
+      <Container maxWidth="xl" className="px-4 py-8 sm:px-6 lg:px-8">
+        <Stack spacing={3}>
+          <Box className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard
+              label="Total Employees"
+              value={totalEmployees.toLocaleString("en-IN")}
+            />
+            <StatCard
+              label="Average Salary"
+              value={`₹${averageSalary.toLocaleString("en-IN", {
                 maximumFractionDigits: 0,
-              })}
-            </p>
-          </div>
+              })}`}
+            />
+            <StatCard
+              label="Highest Salary"
+              value={`₹${highestSalary.toLocaleString("en-IN")}`}
+            />
+          </Box>
 
-          <div className="rounded-lg bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">Highest Salary</p>
-            <p className="text-3xl font-bold">
-              ₹{highestSalary.toLocaleString("en-IN")}
-            </p>
-          </div>
-        </div>
-
-        <Filter
-          search={search}
-          department={department}
-          sort={sort}
-          onSearchChange={setSearch}
-          onDepartmentChange={setDepartment}
-          onSortChange={setSort}
-          onAdd={() => {
-            setEditingEmployee(null);
-            setShowForm(true);
-            setMessage("");
-          }}
-        />
-
-        {message && (
-          <div className="my-4 rounded bg-white p-3 text-center font-semibold text-gray-700 shadow">
-            {message}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="rounded bg-white p-8 text-center text-xl font-bold">
-            Loading...
-          </div>
-        ) : (
-          <Table
-            employees={visibleEmployees}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            disabled={actionLoading}
+          <FilterBar
+            search={search}
+            department={department}
+            sort={sort}
+            onSearchChange={setSearch}
+            onDepartmentChange={setDepartment}
+            onSortChange={setSort}
+            onAdd={openAddForm}
           />
-        )}
 
-        {!loading && employees.length === 0 && !message && (
-          <div className="mt-4 text-center">No employees found.</div>
-        )}
+          {loading ? (
+            <Paper className="p-8 text-center sm:p-12">
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Loading employees...
+              </Typography>
+            </Paper>
+          ) : (
+            <EmployeeTable
+              employees={visibleEmployees}
+              onEdit={handleEdit}
+              onDelete={(employee) => setDeleteTarget(employee)}
+              disabled={actionLoading}
+            />
+          )}
 
-        {!loading && employees.length > 0 && visibleEmployees.length === 0 && (
-          <div className="mt-4 rounded bg-white p-6 text-center shadow">
-            No employees match your search/filter.
-          </div>
-        )}
+          {!loading && employees.length === 0 && !message && (
+            <Typography sx={{ textAlign: "center" }}>
+              No employees found.
+            </Typography>
+          )}
 
-        {message.includes("Failed to fetch") && (
-          <div className="mt-4 text-center">
-            <button
-              onClick={fetchData}
-              className="rounded bg-amber-400 px-5 py-2 font-bold hover:bg-amber-500"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-      </main>
+          {!loading &&
+            employees.length > 0 &&
+            visibleEmployees.length === 0 && (
+              <Paper className="p-6 text-center">
+                <Typography sx={{ fontWeight: 600 }}>
+                  No employees match your search/filter.
+                </Typography>
+              </Paper>
+            )}
+
+          {message.includes("Failed to fetch") && (
+            <Box className="text-center">
+              <Button
+                variant="contained"
+                startIcon={<RefreshIcon />}
+                onClick={fetchData}
+              >
+                Retry
+              </Button>
+            </Box>
+          )}
+        </Stack>
+      </Container>
 
       {showForm && (
-        <EmployeeForm
-          key={editingEmployee?.id ?? "new"}
+        <EmployeeDialog
           employee={editingEmployee}
           loading={actionLoading}
           onSubmit={handleSave}
           onClose={closeForm}
         />
       )}
-    </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete employee"
+        description={
+          deleteTarget
+            ? `Are you sure you want to delete ${deleteTarget.employee_name}?`
+            : ""
+        }
+        loading={actionLoading}
+        onCancel={() => {
+          if (!actionLoading) setDeleteTarget(null);
+        }}
+        onConfirm={() => {
+          if (deleteTarget) {
+            void handleDelete(deleteTarget);
+          }
+        }}
+      />
+
+      <Snackbar
+        open={Boolean(message) && !message.includes("Failed to fetch")}
+        autoHideDuration={3500}
+        onClose={() => setMessage("")}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          severity={message.startsWith("Failed") ? "error" : "success"}
+          variant="filled"
+          onClose={() => setMessage("")}
+        >
+          {message}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
 }
 
